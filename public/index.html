@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Amazon Web Scraper | Diego Berrios</title>
+        <link rel="stylesheet" href="./index.css"/>
+        <link rel="icon" href="./amazon_logo_short.jpg" type="image/x-icon">
+    </head>
+    <body>
+        <header>
+            <a href="">
+                <figure>
+                    <img src="./amazon_logo_large.png" alt="amazon logo" width="100px"/>
+                    <h4>Scraper</h4>
+                </figure>
+            </a>
+            <form class="searchbox">
+                <input name='keyword' placeholder="Scrape Amazon"/>
+                <button type="submit" class="searchbutton">
+                    <img src="./magnifying_glass.png" alt="dark manifying glass icon" width="20"/>
+                </button>
+            </form>
+            <div>
+                <a href="https://github.com/diegoberriosr" target="_blank">
+                    <img src="https://devicon-website.vercel.app/api/github/original.svg?color=%23FFFFFF" width="40"/>
+                </a>
+                <a href="https://www.linkedin.com/in/diego-berrios-332963261/" target="_blank" style="margin-left: 20px;">
+                    <img src="https://devicon-website.vercel.app/api/linkedin/original.svg" alt="LinkedIn logo" width="40"/>
+                </a>
+            </div>
+        </header>
+        <main>
+            <h2 class="message">Search for products in Amazon.</h2>
+        </main>
+    </body>
+    <script>
+        const generateStars = (rating) => {
+
+            let stars = ''; 
+            
+            // Add a filled star for every number below provided rating. Fill the rest with empty stars
+            for (i =0; i < 5; i++){
+                if (i < Math.floor(rating)) stars += '★';
+                else stars += '☆';
+            };
+            
+            return stars
+        };
+
+        const appendResults = (matches, products) => {
+            matches.forEach( match => {
+
+                    // Create a new article/card component for every match.
+                    article = document.createElement("article");
+                    article.classList.add('card');
+
+                    // Get the number of stars of the product.
+                    const stars = generateStars(match.avgRating);
+
+                    // Append card content.
+                    article.innerHTML = `
+                        <figure>
+                            <a href="https://amazon.com/${match.url}"}>
+                                <img src="${match.image.url}" alt="${match.image.alt}" class="card-image"/>
+                            </a>
+                        </figure>
+                        <div class="card-body">
+                            <a class="card-title" href="https://amazon.com/${match.url}" target="_blank">${match.title}</a>
+                            ${ match.avgRating ?
+                            `<p>
+                                <span>${match.avgRating} of 5 stars <span class="stars">${stars}</span></span>
+                            </p>`
+                            :
+                            ''
+                        }
+                        ${
+                           match.ratings ?
+                            `<p class='blue-font'>${match.ratings} reviews </p>`
+                            :
+                            '<p class="blue-font">Review data not available.</p>'
+                        }
+                        ${match.price ? 
+                            `<p class="price-tag">
+                                <span class='decimal'>$</span>
+                                <span style="margin-left: 10px;">${match.price.integer}<span>
+                                ${ match.price.decimal > 0 ? `<span class='decimal'>${match.price.decimal}</span>` : ''}
+                            </p>` 
+                                : 
+                            '<p class="blue-font">Price currently not available.</p>'}
+                        </div>
+                    `;
+                    
+                    // Append product node to the HTML. 
+                    products.appendChild(article);
+                });
+        };
+
+        const handleScrape = async (event) => {
+     
+            event.preventDefault();
+            
+            // Get keyword from the input string.
+            const keyword = event.target.elements.keyword.value;
+
+            // Do not allow empty searches/keywords.
+            if (!keyword || keyword.trim().length === 0) return;
+
+            // Clean all previous content.
+            const main = document.querySelector("main");
+            main.innerHTML = '';
+
+            // Add a loading state
+            const loadingState= document.createElement("div");
+            loadingState.classList.add("container-center");
+            loadingState.innerHTML = '<div class="loading"></div>';
+            main.append(loadingState);
+          
+            // Make a request to the server with the provided keyword. 
+            const res = await fetch(`http://localhost:3000/api/scrape?keyword=${keyword}`);
+            main.removeChild(loadingState); // Remove loading state when promise is fullfilled.
+
+            // Check for errors during request.
+            if ( res.status !== 200) {
+                const alert = document.createElement("div");
+                alert.classList.add("container-center")
+                alert.innerHTML = "<h3>An error occurred, please try again.<h3>";
+                main.append(alert);
+
+                return;
+            }
+
+            // Process response data.
+            const matches = await res.json();
+            
+            // Create a header for the results section.
+            const header = document.createElement("h2");
+            header.innerHTML = `
+                    <span>Results</span>
+                    <span class="text-lead">Click on a card's title to visit its <strong>Amazon's</strong> listing page</span>
+                    `;
+
+            // Create a new products section.
+            const products = document.createElement("section");
+            products.classList.add("matches");
+            appendResults(matches, products); // Append matches to section.
+
+            // Append header and products to main.
+            main.append(header);
+            main.append(products);
+        };
+        
+        document.addEventListener("DOMContentLoaded", () => {
+            document.querySelector("form").addEventListener("submit", (event) => { handleScrape(event)} );
+        });
+    </script>
+</html>

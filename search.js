@@ -4,6 +4,16 @@ const axios = require("axios");
 
 
 
+const parseStars = (string) => {
+
+    // Check if string contains an integer.
+    match = string.match(/[0-5] /);
+
+    if (match) return Number(match); // Return the integer if so.
+ 
+    return parseFloat(string); // Otherwise return the number as a float value.
+}
+
 const getItems = async (query) => {
     try {
         // Make a search query
@@ -22,17 +32,8 @@ const getItems = async (query) => {
         // Parse HTML file.
         const dom = new JSDOM(res.data);
 
-        // Each "match" card/product can have two different combinations of classes.
-        const sectionSelectors = [
-            ".sg-col-20-of-24.s-result-item.s-asin.sg-col-0-of-12.sg-col-16-of-20.sg-col.s-widget-spacing-small.gsx-ies-anchor.sg-col-12-of-16",
-            ".sg-col-4-of-24.sg-col-4-of-12.s-result-item.s-asin.sg-col-4-of-16.AdHolder.sg-col.s-widget-spacing-small.sg-col-4-of-20.gsx-ies-anchor"
-        ]; 
-
-        // Combine both selectors.
-        const combinedSectionSelector = sectionSelectors.join(", ");
-
-        // Get all search matches using the combination of both possible selectors.
-        const sections = dom.window.document.querySelectorAll(combinedSectionSelector)
+        // Get all aections selecting by data-component-type.
+        const sections = dom.window.document.querySelectorAll('[data-component-type="s-search-result"]');
 
         // Map through each product's card and get associated the image, title, url, average rating, and number of ratings.
         const results = Array.from(sections).map(section => {
@@ -42,30 +43,60 @@ const getItems = async (query) => {
 
             // Parse the card's header (contains title and link).
             const header = section.querySelector("h2"); 
-            const hyperlink = header.querySelector("a"); // Get listing URL.
-            const title = header.querySelector("span"); // Get product's title.
+            const hyperlink = header.querySelector("a").href; // Get listing URL.
+            const title = header.querySelector("span").innerHTML; // Get product's title.
 
             // Try to get average rating. Keep in mind some listings do not have an average rating.
-            const avgRating = section.querySelector(".a-icon-alt") 
+            let avgRating = section.querySelector(".a-icon-alt") 
                 ? section
                 .querySelector(".a-icon-alt").innerHTML : 
                 undefined;
             
             // Try to get number of ratings. Listings may not have any ratings as well.
-            const ratings = section.querySelector(".a-size-base .s-underline-text") 
+            const ratings = section.querySelector("span.a-size-base.s-underline-text") 
                 ? section
-                .querySelector(".a-size-base .s-underline-text").innerHTML : 
+                .querySelector("span.a-size-base.s-underline-text").innerHTML
+                :
                 undefined;
 
+            // Attempt to get a listing's price. Some products do not have an available price.
+            let price = section.querySelector(".a-offscreen")
+                ? section
+                .querySelector(".a-offscreen")
+                .innerHTML
+                :
+                undefined;
+            
+            // Parse average rating (if available).
+            if (avgRating) avgRating = parseStars(avgRating.slice(0,3));
+
+            // Parse price (if available).
+            if (price) {
+                // Remove dollar sign from the string and convert it to a number.
+                const parsedPrice = parseFloat(price.replace(/[^0-9.]/g, '')); 
+
+                // Split price into integer and decimal parts.
+                const integerPart = Math.floor(parsedPrice);
+                const decimalPart = (parsedPrice - integerPart).toFixed(2) * 100;
+
+                // Assign the parsed price values.
+                price = {
+                    "integer": integerPart,
+                    "decimal": decimalPart
+                }
+            };
+
             return {
-                'title': title.innerHTML,
-                'url': hyperlink.href,
+                'title': title,
+                'url': hyperlink,
                 'image': {
                     'url': image.src,
                     'alt': image.alt
                 },
                 'avgRating': avgRating,
-                'ratings': ratings
+                'ratings': ratings,
+                "price": price
+
             }
         });
         
